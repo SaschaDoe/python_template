@@ -210,7 +210,7 @@ def main():
     ]
     classifiers = [
         "Programming Language :: Python :: 3",
-        f"Programming Language :: Python :: {py_major_minor}",
+        "Programming Language :: Python :: {py_major_minor}",
         "License :: OSI Approved :: MIT License",
         "Operating System :: OS Independent",
         "Topic :: Software Development :: Libraries :: Python Modules",
