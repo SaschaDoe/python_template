@@ -16,6 +16,7 @@ DEFAULT_PYTHON_VERSION = ">=3.9" # Minimum Python version compatibility
 # * Python installed (version matching DEFAULT_PYTHON_VERSION or higher recommended).
 # * Git installed and available in your system's PATH.
 # * Pre-commit installed and available in your system's PATH.
+# * Latest version of pip installed (run 'python -m pip install --upgrade pip' if needed).
 #   (See detailed installation guide printed below if pre-commit is not found).
 # ---
 
@@ -102,7 +103,7 @@ def print_precommit_install_instructions(file=sys.stderr):
     print(f"      Let's call this `<path_to_your_python_executable>`.", file=file)
     print(f"      The directory containing this executable is the one needed for the PATH.", file=file)
     print(f"      (e.g., C:\\Python312 or /usr/local/bin)", file=file)
-    print(f"      Also note the directory containing pip/scripts (usually `<base_dir>/{scripts_subdir}`).", file=file)
+    print("      Also note the directory containing pip/scripts (usually '<base_dir>/{}').".format(scripts_subdir), file=file)
     print(f"      (e.g., C:\\Python312\\Scripts or /usr/local/bin)", file=file)
 
     print("\n  1b. ADD PYTHON TO SYSTEM PATH (if needed):", file=file)
@@ -122,6 +123,7 @@ def print_precommit_install_instructions(file=sys.stderr):
         print("      - Consult your OS docs for modifying the PATH.")
     print("      >>> IMPORTANT: CLOSE and REOPEN your terminal after modifying the PATH! <<<", file=file)
     print("      - Try `{python_executable_cmd} --version` and `{python_executable_cmd} -m pip --version` again in the NEW terminal.", file=file)
+
 
     print("\n  1c. FIX 'No module named pip' ERROR (if it occurs):", file=file)
     print(f"      If `{python_executable_cmd} -m pip --version` gives 'No module named pip', it means pip is missing from that specific Python installation.", file=file)
@@ -171,20 +173,334 @@ def create_file(path: Path, content: str):
     except Exception as e:
         print(f"An unexpected error occurred while creating {path}: {e}", file=sys.stderr)
 
+def create_directory_structure(project_root: Path, project_name: str):
+    """Creates the project directory structure with README files."""
+    structure = {
+        "src": {
+            project_name: {
+                "feature_name": {
+                    "01_config": {
+                        "README.md": "Configuration files and settings for the feature",
+                        "container.py": '''from enum import Enum
+from injector import Injector, Module, singleton
+from loguru import logger
+from typing import Protocol
 
-# --- Main Setup Logic ---
+class ScreenType(Enum):
+    """Enum representing different screens in the application."""
+    MAIN = "main"
+    SECONDARY = "secondary"
+
+class NavigationMediator(Protocol):
+    """Protocol defining the navigation mediator interface."""
+    def navigate_to(self, screen_type: ScreenType) -> None:
+        """Navigate to the specified screen."""
+        ...
+
+class ApplicationModule(Module):
+    """Configure application-wide dependencies."""
+    
+    def configure(self, binder):
+        # Configure navigation mediator as singleton
+        binder.bind(NavigationMediator, to=NavigationMediatorImpl, scope=singleton)
+        # Add other bindings here
+
+def create_container() -> Injector:
+    """Create and configure the dependency injection container."""
+    return Injector([ApplicationModule()])''',
+                        "logging_config.py": '''from loguru import logger
+import sys
+from pathlib import Path
+
+def setup_logging():
+    """Configure default logging for the application."""
+    # Create logs directory if it doesn't exist
+    logs_dir = Path("logs")
+    logs_dir.mkdir(exist_ok=True)
+    
+    logger.configure(
+        handlers=[
+            {
+                "sink": sys.stdout,
+                "format": "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>",
+                "level": "INFO",
+            },
+            {
+                "sink": logs_dir / "error.log",
+                "format": "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}",
+                "level": "ERROR",
+                "rotation": "10 MB",
+            }
+        ]
+    )'''
+                    },
+                    "02_io": {
+                        "presentation": {
+                            "components": {
+                                "README.md": "Reusable UI components",
+                                "custom_button.py": '''
+from PySide6.QtWidgets import QPushButton
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QPalette
+
+class CustomButton(QPushButton):
+    """Custom styled button component."""
+    
+    def __init__(self, text: str, parent=None):
+        super().__init__(text, parent)
+        self.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                border: none;
+                padding: 8px 16px;
+                border-radius: 4px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:pressed {
+                background-color: #3d8b40;
+            }
+        """)
+''',
+                            },
+                            "navigation": {
+                                "README.md": "Navigation related components",
+                                "navigation_mediator.py": '''
+from typing import Protocol
+from PySide6.QtWidgets import QStackedWidget
+from loguru import logger
+from ..components.custom_button import CustomButton
+from ...01_config.container import ScreenType
+
+class NavigationMediatorImpl:
+    """Implementation of the navigation mediator."""
+    
+    def __init__(self, stacked_widget: QStackedWidget):
+        self._stacked_widget = stacked_widget
+        logger.info("Navigation mediator initialized")
+    
+    def navigate_to(self, screen_type: ScreenType) -> None:
+        """Navigate to the specified screen."""
+        logger.info(f"Navigating to screen: {screen_type.value}")
+        if screen_type == ScreenType.MAIN:
+            self._stacked_widget.setCurrentIndex(0)
+        elif screen_type == ScreenType.SECONDARY:
+            self._stacked_widget.setCurrentIndex(1)
+''',
+                            },
+                            "screens": {
+                                "main_screen": {
+                                    "README.md": "Main screen components",
+                                    "main_screen.py": '''
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtCore import Qt
+from loguru import logger
+from ...components.custom_button import CustomButton
+from ...01_config.container import ScreenType
+
+class MainScreen(QWidget):
+    """Main screen of the application."""
+    
+    def __init__(self, navigation_mediator):
+        super().__init__()
+        self._navigation_mediator = navigation_mediator
+        self._setup_ui()
+        logger.info("Main screen initialized")
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
+        label = QLabel("Main Screen")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        
+        button = CustomButton("Go to Secondary Screen")
+        button.clicked.connect(lambda: self._navigation_mediator.navigate_to(ScreenType.SECONDARY))
+        layout.addWidget(button)
+''',
+                                },
+                                "secondary_screen": {
+                                    "README.md": "Secondary screen components",
+                                    "secondary_screen.py": '''
+from PySide6.QtWidgets import QWidget, QVBoxLayout, QLabel
+from PySide6.QtCore import Qt
+from loguru import logger
+from ...components.custom_button import CustomButton
+from ...01_config.container import ScreenType
+
+class SecondaryScreen(QWidget):
+    """Secondary screen of the application."""
+    
+    def __init__(self, navigation_mediator):
+        super().__init__()
+        self._navigation_mediator = navigation_mediator
+        self._setup_ui()
+        logger.info("Secondary screen initialized")
+    
+    def _setup_ui(self):
+        layout = QVBoxLayout()
+        self.setLayout(layout)
+        
+        label = QLabel("Secondary Screen")
+        label.setAlignment(Qt.AlignCenter)
+        layout.addWidget(label)
+        
+        button = CustomButton("Go to Main Screen")
+        button.clicked.connect(lambda: self._navigation_mediator.navigate_to(ScreenType.MAIN))
+        layout.addWidget(button)
+''',
+                                },
+                                "main_window.py": '''
+from PySide6.QtWidgets import QMainWindow, QStackedWidget
+from loguru import logger
+from ..navigation.navigation_mediator import NavigationMediatorImpl
+from .main_screen.main_screen import MainScreen
+from .secondary_screen.secondary_screen import SecondaryScreen
+from ...01_config.container import create_container
+
+class MainWindow(QMainWindow):
+    """Main window of the application."""
+    
+    def __init__(self):
+        super().__init__()
+        self._setup_container()
+        self._setup_ui()
+        logger.info("Main window initialized")
+    
+    def _setup_container(self):
+        self._container = create_container()
+    
+    def _setup_ui(self):
+        self.setWindowTitle("Template Application")
+        self.setMinimumSize(800, 600)
+        
+        # Create stacked widget for screens
+        self._stacked_widget = QStackedWidget()
+        self.setCentralWidget(self._stacked_widget)
+        
+        # Create navigation mediator
+        self._navigation_mediator = self._container.get(NavigationMediatorImpl)
+        
+        # Create and add screens
+        main_screen = MainScreen(self._navigation_mediator)
+        secondary_screen = SecondaryScreen(self._navigation_mediator)
+        
+        self._stacked_widget.addWidget(main_screen)
+        self._stacked_widget.addWidget(secondary_screen)
+'''
+                            },
+                        },
+                        "services": "External service integrations and adapters"
+                    },
+                    "03_application": "Application use cases and business logic",
+                    "04_domain": "Domain models, entities, and value objects"
+                }
+            }
+        },
+        "tests": {
+            "01_config": "Tests for configuration and settings",
+            "02_io": {
+                "presentation": {
+                    "components": "Tests for UI components",
+                    "screens": {
+                        "view_name": "Tests for ViewModels, Views, and Models"
+                    }
+                },
+                "services": "Tests for service integrations"
+            },
+            "03_application": "Tests for application use cases",
+            "04_domain": "Tests for domain models and business rules"
+        }
+    }
+
+    def create_dirs_and_readme(base_path: Path, structure: dict):
+        for name, content in structure.items():
+            current_path = base_path / name
+            current_path.mkdir(parents=True, exist_ok=True)
+            
+            if isinstance(content, dict):
+                create_dirs_and_readme(current_path, content)
+            else:
+                # Create README.md with description
+                readme_content = f"# {name}\n\n{content}"
+                (current_path / "README.md").write_text(readme_content, encoding='utf-8')
+
+    create_dirs_and_readme(project_root, structure)
+
+def check_pip_version():
+    """Check if pip needs to be updated and notify the user."""
+    try:
+        import pkg_resources
+        current_version = pkg_resources.get_distribution("pip").version
+        print(f"Current pip version: {current_version}")
+        
+        # Get latest version from PyPI
+        import requests
+        response = requests.get("https://pypi.org/pypi/pip/json")
+        latest_version = response.json()["info"]["version"]
+        
+        if pkg_resources.parse_version(current_version) < pkg_resources.parse_version(latest_version):
+            print(f"\nA new release of pip is available: {current_version} -> {latest_version}")
+            print("To update pip, run:")
+            print("python -m pip install --upgrade pip")
+            print("Note: It's recommended to update pip before installing project dependencies.")
+            return False
+        return True
+    except Exception as e:
+        print(f"Warning: Could not check pip version: {e}")
+        return True
+
 def main():
     project_root = Path.cwd()
     print(f"Setting up project in: {project_root}")
 
+    # Check pip version
+    check_pip_version()
+    
     # --- Get Project Name ---
     default_project_name = project_root.name.lower().replace(" ", "_").replace("-", "_")
     project_name_input = input(f"Enter project name (package name) [{default_project_name}]: ")
     project_name = project_name_input or default_project_name
-    # Basic validation for package name
-    if not project_name.isidentifier():
-         print(f"Warning: '{project_name}' might not be a valid Python package name. Using it anyway.", file=sys.stderr)
+    
+    # Create directory structure
+    create_directory_structure(project_root, project_name)
 
+    # Create entry point file
+    entry_point_content = '''
+#!/usr/bin/env python3
+
+import sys
+from PySide6.QtWidgets import QApplication
+from loguru import logger
+
+from src.{project_name}.feature_name.01_config.logging_config import setup_logging
+from src.{project_name}.feature_name.02_io.presentation.screens.main_window import MainWindow
+
+def main():
+    """Entry point for the application."""
+    # Setup logging
+    setup_logging()
+    logger.info("Starting application")
+    
+    # Create Qt application
+    app = QApplication(sys.argv)
+    
+    # Create and show main window
+    window = MainWindow()
+    window.show()
+    
+    # Run application
+    sys.exit(app.exec())
+
+if __name__ == "__main__":
+    main()
+'''
+
+    entry_point_path = project_root / "src" / project_name / "main.py"
+    create_file(entry_point_path, entry_point_content)
 
     # --- Define File Contents ---
 
@@ -193,121 +509,129 @@ def main():
     py_short_ver = f"py{py_major_minor.replace('.', '')}" # e.g., "py39"
 
     # pyproject.toml (Using f-string interpolation carefully)
-    pyproject_content = f"""
-    [build-system]
-    requires = ["hatchling"] # Or "setuptools>=61.0" / "poetry-core"
-    build-backend = "hatchling.build" # Or "setuptools.build_meta" / "poetry.core.masonry.api"
+    pyproject_content = f'''
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-    [project]
-    name = "{project_name}"
-    version = "0.1.0"
-    description = "A new Python project using PySide6 and other tools."
-    readme = "README.md" # Assuming you'll create a main README.md later
-    requires-python = "{DEFAULT_PYTHON_VERSION}"
-    license = {{ text = "MIT" }} # Or choose another license, e.g., license = {{ file = "LICENSE" }}
-    authors = [
-        {{ name = "Your Name", email = "you@example.com" }}, # TODO: Update author info
-    ]
-    classifiers = [
-        "Programming Language :: Python :: 3",
-        "Programming Language :: Python :: {py_major_minor}",
-        "License :: OSI Approved :: MIT License",
-        "Operating System :: OS Independent",
-        "Topic :: Software Development :: Libraries :: Python Modules",
-        "Topic :: Scientific/Engineering :: Visualization", # Example if UI related
-        "Intended Audience :: Developers",
-    ]
-    dependencies = [
-        "loguru~=0.7",
-        "PySide6~=6.6", # Check for the latest stable version
-        "qasync~=0.23",
-        "injector~=0.20",
-        "typeguard~=4.1",
-    ]
+[project]
+name = "{project_name}"
+version = "0.1.0"
+description = "A new Python project using PySide6 and other tools."
+readme = "README.md"
+requires-python = "{DEFAULT_PYTHON_VERSION}"
+license = {{ text = "MIT" }}
+authors = [
+    {{ name = "Your Name", email = "you@example.com" }}
+]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: {py_major_minor}",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Visualization",
+    "Intended Audience :: Developers"
+]
+dependencies = [
+    "loguru~=0.7",
+    "PySide6~=6.6",
+    "qasync~=0.23",
+    "injector~=0.20",
+    "typeguard~=4.1"
+]
 
-    [project.urls]
-    Homepage = "https://github.com/your_username/{project_name}" # TODO: Update URL
-    Issues = "https://github.com/your_username/{project_name}/issues" # TODO: Update URL
+[project.urls]
+Homepage = "https://github.com/your_username/{project_name}"
+Issues = "https://github.com/your_username/{project_name}/issues"
 
-    # Development and Testing Dependencies
-    [project.group.dev.dependencies]
-    pre-commit~=3.6"
-    mypy~=1.9" # Match pre-commit hook version
-    ruff~=0.4" # Match pre-commit hook version
-    # Testing
-    hypothesis~=6.99"
-    pytest~=8.1"
-    pytest-qt~=4.2"
-    pytest-cov~=5.0"
-    # Type stubs for dependencies
-    types-PySide6 ~=6.6 # Match PySide6 version
-    # Add other types-* packages for libraries you use, e.g.:
-    # types-requests
+[project.optional-dependencies]
+dev = [
+    "pre-commit~=3.6",
+    "mypy~=1.9",
+    "ruff~=0.4",
+    "hypothesis~=6.99",
+    "pytest~=8.1",
+    "pytest-qt~=4.2",
+    "pytest-cov~=5.0",
+    "types-PySide6~=6.6"
+]
 
-    # Pytest Configuration
-    [tool.pytest.ini_options]
-    minversion = "7.0"
-    # Basic options. Add --cov={project_name} if you adopt src layout or adjust based on your structure.
-    # Use --cov=. to cover tests directory too initially if desired.
-    addopts = "-ra -q --cov=. --cov-report=term-missing"
-    testpaths = [
-        "tests",
-    ]
-    markers = [
-        "fast: Tests that execute quickly",
-        "slow: Tests that take longer to execute",
-        "ui: Tests related to the user interface",
-    ]
-    # Filter warnings specific to tests if needed
-    # filterwarnings = [
-    #     "ignore::DeprecationWarning",
-    # ]
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = "-ra -q --cov=. --cov-report=term-missing"
+testpaths = [
+    "tests"
+]
+markers = [
+    "fast: Tests that execute quickly",
+    "slow: Tests that take longer to execute",
+    "ui: Tests related to the user interface"
+]
 
-    # Ruff Linter/Formatter Configuration
-    [tool.ruff]
-    target-version = "{py_short_ver}" # e.g. "py39"
-    line-length = 88
+[tool.ruff]
+target-version = "{py_short_ver}"
+line-length = 88
 
-    [tool.ruff.lint]
-    select = [
-        "E", "W", "F", "I", "C", "B", "UP", "RUF", "TID", "ARG", "PTH",
-    ]
-    ignore = [
-        # "B905", # ignore `zip()` without `strict=True` (safe on Py 3.10+) - uncomment if needed
-        # Add other rules to ignore if necessary
-    ]
-    fixable = ["ALL"]
-    unfixable = []
-    exclude = [
-        ".bzr", ".direnv", ".eggs", ".git", ".git-rewrite", ".hg",
-        ".ipynb_checkpoints", ".mypy_cache", ".nox", ".pants.d", ".pyenv",
-        ".pytest_cache", ".pytype", ".ruff_cache", ".svn", ".tox",
-        ".venv", "venv", "env", "ENV", "__pypackages__", "_build",
-        "buck-out", "build", "dist", "node_modules", "*/migrations/*",
-    ]
+[tool.ruff.lint]
+select = [
+    "E",
+    "W",
+    "F",
+    "I",
+    "C",
+    "B",
+    "UP",
+    "RUF",
+    "TID",
+    "ARG",
+    "PTH"
+]
+ignore = []
+fixable = ["ALL"]
+unfixable = []
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    "venv",
+    "env",
+    "ENV",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "*/migrations/*"
+]
 
-    [tool.ruff.format]
-    quote-style = "double"
-    indent-style = "space"
-    skip-magic-trailing-comma = false
-    line-ending = "auto"
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
 
-    # MyPy Configuration
-    [tool.mypy]
-    python_version = "{py_major_minor}" # e.g., "3.9"
-    warn_return_any = true
-    warn_unused_configs = true
-    ignore_missing_imports = true # Start leniently
-    # Enable stricter checks as your project matures:
-    # disallow_untyped_defs = true
-    # check_untyped_defs = true
-    # no_implicit_optional = true
-
-    # [[tool.mypy.overrides]]
-    # module = ["dependency_without_types.*"]
-    # ignore_missing_imports = true
-
-    """
+[tool.mypy]
+python_version = "{py_major_minor}"
+warn_return_any = true
+warn_unused_configs = true
+ignore_missing_imports = true
+'''
 
     # .pre-commit-config.yaml
     pre_commit_content = """
@@ -579,19 +903,27 @@ def main():
             print("-> If pre-commit ran but failed, check its specific error message.", file=sys.stderr)
             print("-> Once fixed, run `pre-commit install` manually inside this project directory.", file=sys.stderr)
 
+    # Initialize Git and make initial commit
+    if git_initialized_successfully:
+        print("\nAdding files to Git...")
+        run_command(["git", "add", "."], cwd=project_root)
+        print("Files added to Git. You can now make your initial commit with:")
+        print("git commit -m \"Initial project structure\"")
 
     # --- Final Instructions ---
     print("\n--- Project Setup Complete! ---")
     print(f"Project '{project_name}' configured in {project_root}")
     print("\nNext Steps:")
-    print("1. (IMPORTANT) Review `pyproject.toml`: Update author details, URLs, description, check dependency versions.")
-    print("2. (IMPORTANT) Review `.pre-commit-config.yaml`: Ensure hook revisions (`rev:`) match tool versions if needed, and add necessary `types-*` to mypy's `additional_dependencies`.")
-    print("3. Review `docs/README.md` and add project-specific details.")
-    print("4. Create and activate a virtual environment (e.g., `python -m venv .venv && source .venv/bin/activate`).")
-    print("5. Install dependencies: `pip install -e \".[dev]\"`")
-    print("6. Add your project code (e.g., create `src/{project_name}/__init__.py` or `{project_name}/__init__.py`).")
-    print("7. Add tests to the `tests/` directory.")
-    print("8. Make your first commit: `git add .` then `git commit -m \"Initial project structure\"`")
+    print("1. (IMPORTANT) Update pip to the latest version:")
+    print("   python -m pip install --upgrade pip")
+    print("2. (IMPORTANT) Review `pyproject.toml`: Update author details, URLs, description, check dependency versions.")
+    print("3. (IMPORTANT) Review `.pre-commit-config.yaml`: Ensure hook revisions (`rev:`) match tool versions if needed, and add necessary `types-*` to mypy's `additional_dependencies`.")
+    print("4. Review `docs/README.md` and add project-specific details.")
+    print("5. Create and activate a virtual environment (e.g., `python -m venv .venv && source .venv/bin/activate`).")
+    print("6. Install dependencies: `pip install -e \".[dev]\"`")
+    print("7. Add your project code (e.g., create `src/{project_name}/__init__.py` or `{project_name}/__init__.py`).")
+    print("8. Add tests to the `tests/` directory.")
+    print("9. Make your first commit: `git add .` then `git commit -m \"Initial project structure\"`")
     print("   (If pre-commit hooks were installed successfully, they will run automatically.)")
     print("   (If pre-commit install failed earlier, ensure it's fixed and run `pre-commit install` before committing.)")
 
